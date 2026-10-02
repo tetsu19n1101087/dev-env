@@ -1,0 +1,73 @@
+{
+  "name": "astro-template",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^24.16.0"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build && prettier --write \"dist/**/*.html\" --ignore-path /dev/null --log-level warn",
+    "preview": "astro preview",
+    "check": "astro check",
+    "lint": "npm run lint:es && npm run lint:style",
+    "lint:es": "eslint .",
+    "lint:style": "stylelint \"src/**/*.{scss,astro}\"",
+    "lint:markup": "markuplint \"dist/**/*.html\"",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test:a11y": "node scripts/axe.mjs",
+    "verify": "npm run build && npm run check && npm run lint && npm run format:check && npm run lint:markup",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "astro": "7.3.5"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "@commitlint/cli": "21.2.3",
+    "@commitlint/config-conventional": "21.2.3",
+    "@eslint/js": "10.0.1",
+    "axe-core": "4.13.0",
+    "eslint": "10.11.0",
+    "eslint-plugin-astro": "3.2.1",
+    "husky": "9.1.7",
+    "kiso.css": "1.2.4",
+    "lint-staged": "17.6.0",
+    "markuplint": "5.0.1",
+    "postcss-html": "2.0.0",
+    "prettier": "3.9.9",
+    "prettier-plugin-astro": "1.1.0",
+    "puppeteer-core": "25.12.0",
+    "sass": "1.105.1",
+    "sharp": "0.35.5",
+    "stylelint": "17.16.0",
+    "stylelint-config-html": "2.0.0",
+    "stylelint-config-recess-order": "7.8.0",
+    "stylelint-config-standard-scss": "17.0.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.0"
+  },
+  "allowScripts": {
+    "esbuild": false,
+    "@parcel/watcher": false,
+    "fsevents": false
+  },
+  "lint-staged": {
+    "*.{js,mjs,ts}": [
+      "eslint --fix --no-warn-ignored",
+      "prettier --write"
+    ],
+    "*.scss": [
+      "stylelint --fix",
+      "prettier --write"
+    ],
+    "*.astro": [
+      "eslint --fix --no-warn-ignored",
+      "stylelint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml}": "prettier --write"
+  }
+}

@@ -1,0 +1,9 @@
+// 実行時に参照する値（DevTools で確認・変更したいもの）はカスタムプロパティにする。
+// 案件で使うものだけを定義する。過去案件からコピーしない。
+:root {
+  --font-sans:
+    system-ui, -apple-system, 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', meiryo, sans-serif;
+  --color-text: #1a1a1a;
+  --color-bg: #fff;
+  --color-accent: #0b57d0;
+}

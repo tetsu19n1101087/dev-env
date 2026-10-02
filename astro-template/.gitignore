@@ -1,0 +1,24 @@
+# 依存
+node_modules/
+
+# ビルド出力・生成物
+dist/
+.astro/
+
+# 環境変数（.env.example は追跡する）
+.env
+.env.*
+!.env.example
+
+# OS・エディタの個人設定
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Claude Code の個人設定・worktree
+.claude/settings.local.json
+.claude/worktrees/
+
+# ログ
+npm-debug.log*

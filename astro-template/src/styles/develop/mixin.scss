@@ -1,0 +1,10 @@
+// :hover は直接書かずこの mixin を使う。
+// any-hover はいずれかのポインタがホバー可能なら真になり、タッチ主体＋マウス接続の端末でも効く。
+// タッチ端末でタップ後にホバー状態が固着するのも防げる。
+@mixin hover() {
+  @media (any-hover: hover) {
+    &:hover {
+      @content;
+    }
+  }
+}

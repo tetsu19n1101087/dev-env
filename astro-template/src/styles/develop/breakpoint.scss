@@ -1,0 +1,37 @@
+@use 'sass:map';
+
+// em で定義し、ブラウザのフォントサイズ設定に追従させる（sm: 768px / md: 1024px / lg: 1280px 相当）。
+// モバイルファースト。SP の値を先に書き、@include min-screen(md) で上書きする。
+$breakpoints: (
+  sm: 48em,
+  md: 64em,
+  lg: 80em,
+);
+
+// 0 を指定したエントリはメディアクエリで包まずに出力する（起点を同じ書き方で扱うため）。
+@function get-breakpoint($name) {
+  // typo（min-screen(mdd) など）を黙って全画面幅に出力しないよう、未定義の名前はエラーにする
+  @if not map.has-key($breakpoints, $name) {
+    @error 'ブレークポイント "#{$name}" は未定義です。定義済み: #{map.keys($breakpoints)}';
+  }
+
+  $min: map.get($breakpoints, $name);
+
+  @if $min != 0 {
+    @return $min;
+  }
+
+  @return null;
+}
+
+@mixin min-screen($name) {
+  $min: get-breakpoint($name);
+
+  @if $min {
+    @media (width >= $min) {
+      @content;
+    }
+  } @else {
+    @content;
+  }
+}

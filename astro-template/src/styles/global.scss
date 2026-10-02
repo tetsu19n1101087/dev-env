@@ -1,0 +1,8 @@
+// Layout から読み込むエントリ。CSS を出力するのが目的なので @use で集約する。
+// レイヤーの順序は layers.scss で最初に宣言する。scoped style（コンポーネント内 <style>）は
+// どのレイヤーにも属さないため、ここで定義したすべてより優先される。
+@use 'layers';
+@use 'reset';
+@use 'variables';
+@use 'base';
+@use 'utilities';

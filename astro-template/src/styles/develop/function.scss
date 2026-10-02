@@ -1,0 +1,7 @@
+@use 'sass:math';
+
+// カンプの px を rem に変換する。rem はルート要素の font-size 基準なので、親要素の font-size には影響されない。
+// ルートの font-size は変えない前提（ブラウザのフォントサイズ設定を尊重するため）で、基準は 16 に固定する。
+@function rem($size) {
+  @return math.div($size, 16) * 1rem;
+}

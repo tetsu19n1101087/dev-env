@@ -1,0 +1,12 @@
+// utilities は scoped style に負ける（レイヤー外のスタイルが優先されるため）。
+// コンポーネント側で同じプロパティを書いていると効かない点に注意。
+@layer utilities {
+  .u-visuallyHidden {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    white-space: nowrap;
+    clip-path: inset(50%);
+  }
+}

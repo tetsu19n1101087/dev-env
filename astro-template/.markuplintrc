@@ -1,0 +1,25 @@
+{
+  "extends": [
+    "markuplint:recommended"
+  ],
+  "rules": {
+    "performance/head-element-order": false,
+    "head-element-order": {
+      "value": [
+        "meta[charset]",
+        "meta[http-equiv]",
+        "meta[name=\"viewport\"]",
+        "title",
+        {
+          "selector": "meta[name]",
+          "order": "alphabetical",
+          "attr": "name"
+        },
+        "meta[property]",
+        "link",
+        "style",
+        "script"
+      ]
+    }
+  }
+}

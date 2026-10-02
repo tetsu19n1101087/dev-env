@@ -1,0 +1,46 @@
+---
+import '@/styles/global.scss';
+import { DEFAULT_DESCRIPTION, DEFAULT_OG_IMAGE, LOCALE, SITE_NAME } from '@/site';
+
+interface Props {
+  /** ページ固有のタイトル。省略時はサイト名のみ */
+  title?: string;
+  description?: string;
+  /** public/ からのパス（例: 'ogp.png'） */
+  ogImage?: string;
+}
+
+const { title, description = DEFAULT_DESCRIPTION, ogImage = DEFAULT_OG_IMAGE } = Astro.props;
+
+const base = import.meta.env.BASE_URL;
+const pageTitle = title ? `${title} | ${SITE_NAME}` : SITE_NAME;
+// Astro.url.pathname には base が含まれる。site は astro.config.mjs の SITE。
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const ogImageUrl = new URL(`${base}${ogImage}`, Astro.site);
+---
+
+<!doctype html>
+<html lang={LOCALE.split('_')[0]}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{pageTitle}</title>
+    <meta name="description" content={description} />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={SITE_NAME} />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:locale" content={LOCALE} />
+
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href={`${base}favicon.svg`} type="image/svg+xml" />
+    <link rel="apple-touch-icon" href={`${base}apple-touch-icon.png`} />
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

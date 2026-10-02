@@ -1,0 +1,3 @@
+# dist/ .astro/ node_modules/ は .gitignore から読まれる（Prettier 3 は既定で .gitignore も参照する）
+.claude/
+package-lock.json

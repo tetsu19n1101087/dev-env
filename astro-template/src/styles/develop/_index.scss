@@ -1,0 +1,5 @@
+// 出力を持たない道具（function / mixin）の集約。
+// astro.config.mjs の additionalData で全 SCSS に注入されるため、各ファイルでの @use は不要。
+@forward 'function';
+@forward 'mixin';
+@forward 'breakpoint';
