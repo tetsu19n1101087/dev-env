@@ -68,7 +68,14 @@ Node の要件が現環境を上回っていると `EBADENGINE` 警告が出る�
 24.20.0
 ```
 
-`.node-version` は nvm / mise / fnm / Volta が共通で読む。特定のツールに依存しない分、チームで環境が揃っていなくても機能する。
+`.node-version` を読むのは fnm と GitHub Actions の `setup-node`（`node-version-file`）。mise は設定を足せば読む（下記）。**Volta は読まない**（`package.json` の `volta` フィールドを使う。`.node-version` 対応は issue #983 で未実装のまま）。
+
+**nvm は `.node-version` を読まない。** 読むのは `.nvmrc` だけ（0.40.4 で確認）。nvm を使う人がいるなら、同じ値の `.nvmrc` を並べて置く。値は1行なので二重管理の負担は小さい。
+
+```bash
+grep -c "node-version" ~/.nvm/nvm.sh   # 0 なら .node-version には非対応
+grep -n "nvmrc" ~/.nvm/nvm.sh | head -3
+```
 
 `package.json` の `engines` は宣言のみで自動切り替えはしないが、警告は出る。併用してよい。
 
@@ -91,7 +98,38 @@ PATH で勝っていることがある。
 which node && node -v
 ```
 
+## install scripts の許可（npm 11）
 
+**症状:** `npm install` の最後に次の警告が出る。
+
+```
+npm warn install-scripts 2 packages have install scripts not yet covered by allowScripts:
+npm warn install-scripts   esbuild@0.28.2 (postinstall: node install.js)
+npm warn install-scripts   @parcel/watcher@2.6.0 (install: node scripts/build-from-source.js)
+```
+
+**原因:** npm 11 では、依存パッケージの install scripts（`preinstall` / `install` / `postinstall`）は**既定でブロックされ、無言でスキップされる**。`package.json` の `allowScripts` に許可が無いものが一覧で警告される。悪意ある postinstall による任意コード実行への対策。自プロジェクトの `prepare`（husky など）は対象外。`npm ci` でも同じ。
+
+**対応:** スクリプトの中身を読み、要るものだけ許可する。
+
+```bash
+npm install-scripts ls                 # 未確認の一覧
+npm pack <pkg>@<ver> && tar xzf *.tgz  # 中身を読む（package/ に展開される）
+npm install-scripts approve <pkg>      # 許可。既定で pkg@1.2.3 と版固定で書き込まれる
+npm install-scripts deny <pkg>         # 明示的に拒否。approve --all でも上書きされない
+```
+
+放置すると毎回警告が出て、新しく危険なスクリプトが増えたときに埋もれる。不要と判断したものは `deny` で記録して警告を消す。
+
+Astro（Vite）構成で出る3件は、いずれも拒否しても動いた（build と HMR を実ブラウザで確認）。
+
+| パッケージ | 中身 | 拒否してよい理由 |
+|---|---|---|
+| `esbuild` | バイナリの確認・JS シムの差し替え | バイナリは optionalDependencies で入る |
+| `@parcel/watcher`（sass 経由） | `npm_config_build_from_source=true` のときだけ `node-gyp rebuild` | 通常は何もしない |
+| `fsevents`（vite 経由、macOS のみ） | ネイティブモジュールのビルド | ビルド済みの `fsevents.node` が同梱されている |
+
+**optional 依存は環境によって入ったり入らなかったりする。** `fsevents` は lockfile にあっても、最初のインストールでは入らず警告にも出なかった。別ディレクトリで `npm install` し直して初めて警告に出た。**一時コピーで新規インストールして確かめる。**
 
 ## dependencies と devDependencies
 

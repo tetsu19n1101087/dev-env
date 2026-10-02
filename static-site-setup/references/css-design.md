@@ -69,6 +69,23 @@ css: { preprocessorOptions: { scss: { additionalData: `@use "<path>/develop" as 
 
 **コンポーネント内の `<style>` は独立してコンパイルされる**ため、注入しないと mixin が使えない。`Undefined mixin` で落ちる。
 
+**tsconfig の `paths` エイリアスは Sass の `@use` には効かない。** `additionalData: '@use "@/styles/develop" as *;'` と書くと `Can't find stylesheet to import.` で落ちる。TS の import ではエイリアスが効くので、同じ書き方が通ると思い込みやすい。Sass の `loadPaths` に探索先を渡す。
+
+```js
+import { fileURLToPath } from 'node:url';
+// scss: {
+//   loadPaths: [fileURLToPath(new URL('./src/styles', import.meta.url))],
+//   additionalData: `@use "develop" as *;\n`,
+// }
+```
+
+絶対パスを `additionalData` の文字列に埋め込む方法でも macOS では動くが、Windows のパスは `\` が Sass の文字列エスケープとして解釈されて壊れる。
+
+```bash
+printf 'a { b: "C:\\Users\\taro\\src\\styles\\develop"; }\n' | npx sass --stdin
+# b: "C:UserstarosrcstylesÞvelop";   ← \ が消え、\de は16進エスケープとして Þ になる
+```
+
 ## スコープ機構の制約を把握する
 
 フレームワークのスコープ付きスタイルには共通の制約がある。**採用前に実際に試す。**
@@ -127,6 +144,23 @@ css: { preprocessorOptions: { scss: { additionalData: `@use "<path>/develop" as 
 
 自前のCSSだけで完結する環境（外部CSSが無い）なら、レイヤーで整理する方が見通しがよい。**環境によって答えが変わる項目**として意識する。
 
+#### レイヤーで整理する場合の構成例
+
+```scss
+// layers.scss（global.scss で最初に @use する）
+@layer reset, base, utilities;
+
+// reset.scss — 外部の reset もレイヤーに入れられる
+@use 'sass:meta';
+@layer reset {
+  @include meta.load-css('kiso.css/kiso');
+}
+```
+
+- Sass では `@use` より前に他の規則を書けないので、順序の宣言は専用ファイルにして最初に `@use` する
+- **フレームワークの scoped style はレイヤーに属さない**ので、全レイヤーより優先される。逆に言えば **utilities は scoped style に負ける**。コンポーネント側で同じプロパティを書いているとユーティリティが効かない
+- ビルド後の CSS からは `@layer reset, base, utilities;` の宣言文が消える。minifier がブロックを宣言順に並べ替えたうえで削除するため、順序は保たれる（宣言順を入れ替えるとブロックの並びも入れ替わることで確認できる）
+
 ### `:where()` と `@scope` の使い分け
 
 どちらもスコープルートの詳細度を加算しない。結果は同じになる。
@@ -170,7 +204,9 @@ grep -n "box-sizing\|margin: 0\|list-style" <既存CSS>
 
 ### 既存CSSが無い環境
 
-destyle / modern-normalize / ress などから選ぶ。デザインカンプ通りに作る案件では、ブラウザデフォルトを消す方向（reset寄り）が扱いやすい。
+destyle / modern-normalize / ress / kiso.css などから選ぶ。デザインカンプ通りに作る案件では、ブラウザデフォルトを消す方向（reset寄り）が扱いやすい。
+
+**kiso.css** は日本語の組版（`text-autospace`、`line-break: strict`、`text-spacing-trim`）に配慮しており、ほぼ全ての規則が `:where()` で詳細度0になっている。`line-height: 1.5`、リンク色のリセット、画像の `max-inline-size: 100%`、フォーム要素のリセットまで含むので、base 側で同じことを書かない。中身は `@layer` を持たないので、自分でレイヤーに入れられる（上記）。
 
 `*` に対するグローバルリセットは、下位のカスケードレイヤーや Web Components から上書きできなくなるという指摘がある。要素型を指定する方が安全。
 
@@ -206,8 +242,8 @@ Stylelint の `media-feature-range-notation` が既定のままなら、`min-wid
 // function.scss
 @use 'sass:math';
 
-@function rem($size, $base: 16) {
-  @return math.div($size, $base) * 1rem;
+@function rem($size) {
+  @return math.div($size, 16) * 1rem;
 }
 ```
 
@@ -231,6 +267,10 @@ $breakpoints: (
 );
 
 @function get-breakpoint($name) {
+  @if not map.has-key($breakpoints, $name) {
+    @error 'ブレークポイント "#{$name}" は未定義です。定義済み: #{map.keys($breakpoints)}';
+  }
+
   $min: map.get($breakpoints, $name);
 
   @if $min != 0 {
@@ -255,11 +295,13 @@ $breakpoints: (
 
 ### なぜこの形か
 
-**`rem()` の第2引数** — 親要素で `font-size` を変えている箇所など、16px以外を基準にしたい場合に備える。
+**`rem()` は基準を 16 に固定する** — rem はルート要素の `font-size` 基準なので、親要素で `font-size` を変えていても結果は変わらない。基準を引数で変えられるようにしても、使い道はルートの `font-size` を変えた場合だけで、それはブラウザのフォントサイズ設定を上書きするのでやらない。以前は第2引数 `$base` を持たせていたが、「親の font-size に合わせる」という誤った理由で使われうるので外した。親を基準にしたいなら `em` を使う。
 
 **`hover()` は `any-hover` を使う** — `hover: hover` は主ポインタのみを見るため、タッチ操作が主でマウスも接続されている端末（タッチ対応ノートPCなど）でホバー効果が効かなくなる。`any-hover` はいずれかのポインタがホバー可能なら真になる。
 
 `:hover` を直接書くと、タッチデバイスでタップ後にホバー状態が固着する。**mixin でラップすることを規約にする。**
+
+**`get-breakpoint()` は未定義の名前を `@error` で止める** — `map.get()` は存在しないキーに `null` を返すため、ガードが無いと `min-screen(mdd)` のような typo が下の `@else` に落ち、**メディアクエリ無しで全画面幅に出力される**。エラーにならず見た目だけが崩れるので気づきにくい。
 
 **`get-breakpoint()` が `0` を `null` として返す** — モバイルファーストの起点（`sm: 0` のようなエントリ）を、他と同じ `@include min-screen()` の書き方で扱えるようにする分岐。値が `0` ならメディアクエリで包まずそのまま出力する。書き分けが不要になる。
 

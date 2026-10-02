@@ -63,6 +63,24 @@ cta-logo.svg
 | JPG 30KB | WebP 8.5KB | -72% |
 | PNG 104KB | WebP 34KB | -67% |
 
+### `<source>` に `sizes` が付かないことがある
+
+**症状:** markuplint が `The "sizes" attribute is required when the "srcset" attribute uses width descriptors`（`html-standard/srcset-sizes-constraint`）をエラーにする。
+
+**原因:** Astro の `<Picture>` で `layout` を指定すると `srcset`（幅記述子）と `sizes` が自動生成されるが、**自動生成の `sizes` は `<img>` にしか付かず、`<source>` には付かない。** 幅記述子の `srcset` に `sizes` が無いのは HTML の仕様違反。`<Picture>` の実装は**明示された `sizes` だけ**を `<source>` に伝播する。
+
+**確かめ方と対応:**
+
+```bash
+grep -o '<source[^>]*>' dist/index.html | grep -o 'sizes="[^"]*"'   # 何も出なければ付いていない
+```
+
+```astro
+<Picture src={img} formats={['avif', 'webp']} layout="full-width" sizes="100vw" alt="" priority />
+```
+
+LCP 候補の画像には `priority` を付ける。`loading="eager"` / `decoding="sync"` / `fetchpriority="high"` がまとめて付く。1ページ1枚にとどめる。
+
 ### 配置場所が変わる
 
 最適化機能は**ビルドツールが管理するディレクトリ配下の画像しか処理しない**。静的配信ディレクトリ（`public/` など）に置くと素通しになる。

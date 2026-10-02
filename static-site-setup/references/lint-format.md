@@ -248,6 +248,13 @@ markuplint はマークアップの妥当性とアクセシビリティを機械
 
 代わりに、ビルドしないと検査できないため実行タイミングが後工程になる。pre-commit には載せられない。
 
+**ソースを検査するためのパーサが本体に追随していないこともある。** `@markuplint/astro-parser@5.0.1` は `astro-eslint-parser@1.4.0` 経由で旧 Go 製コンパイラ（`@astrojs/compiler` 2/3 系）を使っており、Astro 7（`@astrojs/compiler-rs`）とは別物で `.astro` を解析する。peer 依存を宣言していないので npm は何も警告しない。依存ツリーで確かめる。
+
+```bash
+npm view @markuplint/astro-parser dependencies
+npm view astro-eslint-parser@<その版> dependencies
+```
+
 ### プリセットの中身を確認する
 
 `recommended` が参照する個別プリセットの中には**空のものがある**。中身を読んでから採用する。
@@ -257,6 +264,34 @@ cat node_modules/@markuplint/config-presets/preset.*.json
 ```
 
 `img` に `width`/`height` を要求する、`iframe` に `title`/`loading` を要求するといったルールは、CLS/LCP対策を機械的に担保できる。OGPを書く場合は `meta[property]` を許可するプリセットが要る（無いと `invalid-attr` で弾かれる）。
+
+### `head-element-order` は OGP と相性が悪い（markuplint 5）
+
+**症状:** OGP の `<meta property>` すべてと `description` に `要素「meta」は要素「meta」より前にしたほうがよいです` の警告が出る。どう並べ替えても消えない。
+
+**原因:** 既定値は `meta` を **`name` 属性のアルファベット順**に並べる前提。`name` を持たない `meta[property]` は空文字として扱われ、先頭にあるべきと判定される。さらに `recommended` の中では `performance/head-element-order` という**名前付きのルール**として有効になっているので、`head-element-order` を設定しても既定値の方が別に走り続ける。
+
+**対応:** 名前付きの方を無効化し、`meta[property]` を独立したグループにした順序を設定する。
+
+```json
+{
+  "extends": ["markuplint:recommended"],
+  "rules": {
+    "performance/head-element-order": false,
+    "head-element-order": {
+      "value": [
+        "meta[charset]", "meta[http-equiv]", "meta[name=\"viewport\"]", "title",
+        { "selector": "meta[name]", "order": "alphabetical", "attr": "name" },
+        "meta[property]", "link", "style", "script"
+      ]
+    }
+  }
+}
+```
+
+設定後、わざと順序を崩した HTML で警告が出ることを確かめる（無効化しただけになっていないか）。
+
+既定値はルールの実装（`node_modules/@markuplint/rules/lib/head-element-order/index.js` の `DEFAULT_VALUE`）で確認できる。
 
 ### 静的解析だけでは足りない場合
 
@@ -293,6 +328,11 @@ const browser = await puppeteer.launch({
 - **`verify` には入れない。** サーバー起動が前提になり、通し検査が環境に依存する。独立コマンドにする
 - **axe の自動検出は WCAG 問題の3〜4割程度。** 「違反0件」は準拠の証明にならない。
   キーボード操作・フォーカス順序・読み上げ順序は手動確認が要る旨を、実行時の出力にも書いておく
+- **`incomplete`（判定できなかったもの）も出力する。** 背景画像の上に置いた文字のコントラストは axe が計算できず、
+  `violations` ではなく `incomplete` に入る。`violations` だけを見ていると、LP で最も多い「画像の上の白文字」が
+  一度も確認されないまま「違反0件」になる
+- **検査スクリプト自体が違反を検出できるか確かめる。** 違反を仕込んだページ（alt の無い `img`、`lang` の無い `html`、
+  SP 幅でだけ表示される空の `button`）を置いて、エラーになること・画面幅ごとに結果が変わること・exit 1 になることを見る
 
 ### 納品物そのものを検査する
 
@@ -321,6 +361,20 @@ lint が見ないもののうち、**気づかないまま納品すると事故�
 支給待ちで参照だけ先に置いているものは、**許容リストに明示して毎回警告を出す**。
 「未支給だから落ちる」を放置すると検査自体が無視されるようになる。リストが空になるのが正しい状態。
 
+### 開発者向けのコメントが納品物に残る
+
+**症状:** 納品 HTML に「LCP 候補なので priority を付ける」のような実装メモが残っている。
+
+**原因:** Astro のテンプレート部分（frontmatter の外）に書いた `<!-- -->` は、HTML のコメントとしてそのまま出力される。frontmatter 内の `//` や、テンプレート内の `{/* */}`（JSX 式のコメント）は出力されない。
+
+**確かめ方と対応:**
+
+```bash
+grep -c '<!--' dist/**/*.html   # 意図したコメント（SSI など）以外が 0 か
+```
+
+開発者向けのメモは `{/* */}` で書く。既存サイトのインクルード（`<!--#include -->`）のように**出力が必要なコメント**とは区別する。
+
 ## pre-commit フック
 
 ステージされたファイルだけを対象にすると速い。
@@ -337,7 +391,9 @@ lint が見ないもののうち、**気づかないまま納品すると事故�
 
 `.husky/pre-commit` に `npx lint-staged` を書く。
 
-**`prepare` は Git リポジトリでないと失敗する。** リポジトリ化前に `npm install` した場合は、`git init` 後に初期化コマンドを実行する。
+**`prepare` は Git リポジトリでないと何もしない。** husky 9 は**カレントディレクトリに `.git` があるか**を最初に確かめ、無ければ `.git can't be found` と出して終わる（exit 0 なので `npm install` は失敗しない）。リポジトリ化前に `npm install` した場合は、`git init` 後に `npx husky` を実行する。
+
+この確認は「カレントに `.git` があるか」なので、**別リポジトリのサブディレクトリ（モノレポやテンプレート置き場）で `npm install` しても、親リポジトリの `core.hooksPath` は書き換わらない。** 代わりにフックも有効にならないので、フックの動作確認は一時コピーで `git init` してから行う。
 
 `--fix` を付けると、修正内容が自動で再ステージされコミットに含まれる。修正できないエラーがあればコミットが中止され、作業ツリーは元の状態に復元される。**両方向とも実際に試して確認する。**
 
@@ -394,7 +450,7 @@ READMEに手順を書いておく。ターミナルからコミットする人�
 ```json
 {
   "lint": "npm run lint:es && npm run lint:style",
-  "verify": "npm run build && npm run check && npm run lint && npm run lint:markup"
+  "verify": "npm run build && npm run check && npm run lint && npm run format:check && npm run lint:markup"
 }
 ```
 
