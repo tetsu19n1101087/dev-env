@@ -4,6 +4,8 @@
 
 - 日本語と英数字で分けることが多い（entre-web: 日本語 Noto Sans JP、英数字 Inter）。CSS では英字フォントを先に書き、日本語は後ろのフォントで表示させる（`Inter, "Noto Sans JP", sans-serif`）
 - Figma のテキストスタイルはフォントを1つしか持てない。日本語の方（`font-family/ja`）を設定する。tokens.json の `styleFontFamily` で指定する
+- 日時や数字だけを欧文フォントで見せたいときは、専用の系統を作り、スタイルの `fontFamily` で欧文フォントを指定する（entre-web: `meta/sm` = Inter / bold / 12px、`"fontFamily": "en"`）。欧文フォントには日本語の文字がないので、日付は `2026.10.15` のように数字と記号だけで書き、「件」「年」を含むものには使わない
+- コードでは Tailwind v4 の `--text-*` がフォントを持てないので、`@theme` に `--font-en` を定義し、`class="text-meta-sm font-en"` のように併用する
 - 太さは使うものだけ（400 / 700 など）。読み込む太さが減り、`font-medium` のような中途半端な太さが紛れ込まない
 - Next.js なら `next/font/google` で読み込む
 

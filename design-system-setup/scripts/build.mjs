@@ -70,6 +70,7 @@ for (const [name, s] of Object.entries(TY.styles)) {
   const size = TY.fontSize[s.size];
   if (size == null) errors.push(`テキストスタイル ${name} の size がない: ${s.size}`);
   if (TY.fontWeight[s.weight] == null) errors.push(`テキストスタイル ${name} の weight がない: ${s.weight}`);
+  if (s.fontFamily && TY.fontFamily[s.fontFamily] == null) errors.push(`テキストスタイル ${name} の fontFamily がない: ${s.fontFamily}`);
   // 行の高さ（文字サイズ × 倍率）が 4 の倍数か。倍率は小数第2位までなので ±0.1px は許容
   const h = size * s.lineHeight;
   if (Math.abs(h - Math.round(h / 4) * 4) > 0.1) warnings.push(`${name}: 行の高さ ${h.toFixed(2)}px が4の倍数ではない`);
@@ -125,7 +126,8 @@ for (const [name, s] of Object.entries(TY.styles)) {
   set(typography, name.split('/'), {
     $type: 'typography',
     $value: {
-      fontFamily: `{${COL.typography}.font-family.${TY.styleFontFamily ?? Object.keys(TY.fontFamily)[0]}}`,
+      // スタイルごとの fontFamily（ja / en などのキー）があれば優先。Figma のスタイルはフォントを1つしか持てない
+      fontFamily: `{${COL.typography}.font-family.${s.fontFamily ?? TY.styleFontFamily ?? Object.keys(TY.fontFamily)[0]}}`,
       fontSize: `{${COL.typography}.font-size.${s.size}}`,
       fontWeight: `{${COL.typography}.font-weight.${s.weight}}`,
       lineHeight: s.lineHeight,
@@ -180,7 +182,10 @@ const typeRows = Object.entries(TY.styles)
     const ls = (s.letterSpacing ?? 0) / 100;
     const ot = featureSettings(s);
     const otMeta = ot ? `<span>OpenType: ${esc((s.openTypeFeatures ?? []).join(', '))}（Figma は手作業で設定）</span>` : '';
-    return `<div class="type-row"><div class="type-meta"><code>${esc(name)}</code><span>${px}px / ${esc(s.weight)} ${w} / ${s.lineHeight} → ${+(px * s.lineHeight).toFixed(2)}px / 字間 ${s.letterSpacing ?? 0}%（${ls}em）</span>${otMeta}<span>${esc(s.use)}</span></div><p class="sample" style="font-size:${px}px;font-weight:${w};line-height:${s.lineHeight};letter-spacing:${ls}em${ot ? `;font-feature-settings:${esc(ot)}` : ''}"><span>${esc(s.sample ?? 'あいうえお Aa 123')}</span></p></div>`;
+    // スタイル固有のフォント（例: 欧文だけの meta/sm は en）。既定はページ全体の cssFontStack
+    const fam = s.fontFamily ? `;font-family:&quot;${esc(TY.fontFamily[s.fontFamily])}&quot;, sans-serif` : '';
+    const famMeta = s.fontFamily ? `<span>フォント: font-family/${esc(s.fontFamily)}（${esc(TY.fontFamily[s.fontFamily])}）</span>` : '';
+    return `<div class="type-row"><div class="type-meta"><code>${esc(name)}</code><span>${px}px / ${esc(s.weight)} ${w} / ${s.lineHeight} → ${+(px * s.lineHeight).toFixed(2)}px / 字間 ${s.letterSpacing ?? 0}%（${ls}em）</span>${famMeta}${otMeta}<span>${esc(s.use)}</span></div><p class="sample" style="font-size:${px}px;font-weight:${w};line-height:${s.lineHeight};letter-spacing:${ls}em${ot ? `;font-feature-settings:${esc(ot)}` : ''}${fam}"><span>${esc(s.sample ?? 'あいうえお Aa 123')}</span></p></div>`;
   })
   .join('');
 const families = [...new Set(Object.values(TY.fontFamily))];
