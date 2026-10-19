@@ -11,7 +11,7 @@ description: Web サイト・アプリのデザインシステム（色・文字
 
 色や文字の値を Figma・DESIGN.md・コードでそれぞれ手で直すと、すぐに食い違う。しかもデザインの判断は「表で見て良さそう」でも、画面に並べると印象が違うことが多い。だから次の流れを崩さない。
 
-1. 案件リポジトリの `design/tokens.json` を正にする
+1. 案件リポジトリの `tokens/tokens.json` を正にする
 2. `scripts/build.mjs` で検証（参照の整合性・コントラスト比・行の高さ）し、一覧ページと Figma 用 JSON を生成する
 3. 一覧ページを目で見て、ユーザーに確認を取ってから次へ進む
 4. Figma に読み込み、DESIGN.md と対応表に反映する
@@ -39,25 +39,28 @@ description: Web サイト・アプリのデザインシステム（色・文字
 3. **余白・角丸** → `references/typography.md` の末尾（スケールの決め方は文字と同じ考え方）
 4. **コンポーネント**（ボタンのサイズ、バッジ、入力欄など）→ DESIGN.md の Components に書く
 5. **Figma に読み込む** → `references/figma-import.md`
-6. **DESIGN.md・対応表・issue に反映する** → `references/design-md.md`
+6. **コードに入れる（CSS の生成、Tailwind v4）** → `references/code.md`
+7. **DESIGN.md・対応表・issue に反映する** → `references/design-md.md`
 
 各層で、決める前に「今の値」と「実装（コード）との差分」を調べておく。既存コードがある案件では、DESIGN.md の「実装との差分」に積んでおき、コードの置き換えは別タスクにする。
 
 ## ファイルの置き場所
 
-案件リポジトリに置く（git で履歴を残し、DESIGN.md と並べて管理する）。
+案件リポジトリに置く（履歴を残し、DESIGN.md と並べて管理する）。スクリプトもスキルから複製して案件に持たせると、スキルがない環境でも生成できる。
 
 ```
 <案件>/
 ├── DESIGN.md
-└── design/
-    ├── tokens.json          # 正。手で編集するのはこれだけ
-    └── dist/                # 生成物（コミットしてよい）
-        ├── figma-tokens.json
-        └── preview.html
+├── tokens/
+│   ├── tokens.json          # 正。手で編集するのはこれだけ
+│   ├── build.mjs            # scripts/build.mjs の複製
+│   └── dist/                # 生成物（コミットする）
+│       ├── figma-tokens.json
+│       └── preview.html
+└── app/tokens.css           # 生成物。アプリはこれだけを読む（tokens/ に依存しない）
 ```
 
-tokens.json の形は `examples/entre-web/tokens.json` を雛形にする。各項目の意味は `references/colors.md` と `references/typography.md` にある。
+tokens.json の形は `examples/entre-web/tokens.json` を雛形にする。各項目の意味は `references/colors.md`、`references/typography.md`、`references/code.md` にある。
 
 ## スクリプト
 
@@ -67,7 +70,8 @@ tokens.json の形は `examples/entre-web/tokens.json` を雛形にする。各�
 SKILL=~/workspace/dev-env/design-system-setup
 
 # 検証と生成。問題があれば終了コード 1 で、一覧ページの冒頭にも表示される
-node $SKILL/scripts/build.mjs design/tokens.json            # → design/dist/
+node $SKILL/scripts/build.mjs tokens/tokens.json            # → tokens/dist/ と css.out
+node $SKILL/scripts/build.mjs tokens/tokens.json --check    # 書き出さずに生成物との差を確認（コミット前）
 
 # 階調の生成（結果の JSON を tokens.json の color.primitives に貼る）
 node $SKILL/scripts/palette.mjs seed blue '#1B4965'

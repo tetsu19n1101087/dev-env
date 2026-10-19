@@ -1,20 +1,27 @@
 #!/usr/bin/env node
-// tokens.json（案件のデザイントークンの正）から、次の2つを生成する。
+// tokens.json（案件のデザイントークンの正）から、次を生成する。
 //   <outDir>/figma-tokens.json  Figma の Token Import プラグインで読み込む DTCG 形式
 //   <outDir>/preview.html       色と文字を目で確認する一覧ページ
+//   tokens.json の css.out      アプリが読み込む CSS（Tailwind v4 の :root / @theme）。css がなければ作らない
 // 生成の前に、参照の整合性とコントラスト比を検証する。問題があれば終了コード 1。
+// 実行したディレクトリに prettier があれば、生成物をその設定で整形してから書き出す。
 //
-// 使い方: node build.mjs <tokens.json> [outDir=./dist]
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+// 使い方: node build.mjs <tokens.json> [outDir=<tokens.json の隣の dist>] [--check]
+//   --check  書き出さずに、生成結果と既存のファイルを比べる。違えば終了コード 1（コミット前のチェック用）
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { dirname, join, relative, resolve } from 'node:path';
 
-const [, , tokensPath, outArg] = process.argv;
+const args = process.argv.slice(2);
+const check = args.includes('--check');
+// lint-staged はファイル名を後ろに付けて呼ぶので、拡張子の付いた位置引数は outDir として扱わない
+const [tokensPath, outArg] = args.filter((a) => !a.startsWith('--'));
 if (!tokensPath) {
-  console.error('使い方: node build.mjs <tokens.json> [outDir]');
+  console.error('使い方: node build.mjs <tokens.json> [outDir] [--check]');
   process.exit(2);
 }
 const T = JSON.parse(readFileSync(tokensPath, 'utf8'));
-const outDir = resolve(outArg ?? join(dirname(tokensPath), 'dist'));
+const outDir = resolve(outArg && !/\.[a-z0-9]+$/i.test(outArg) ? outArg : join(dirname(tokensPath), 'dist'));
 const C = T.color;
 const TY = T.typography;
 const COL = { typography: 'Typography', primitive: 'PrimitiveColor', alias: 'AliasColor', semantic: 'SemanticColor', ...T.collections };
@@ -250,9 +257,97 @@ const html = `<!doctype html>
 </html>
 `;
 
-mkdirSync(outDir, { recursive: true });
-writeFileSync(join(outDir, 'figma-tokens.json'), `${JSON.stringify(dtcg, null, 2)}\n`);
-writeFileSync(join(outDir, 'preview.html'), html);
+// ---- CSS（Tailwind v4） ----
+// 用途別の各行の css（変数名、または配列）を :root に hex で出し、@theme inline で --color-* に割り当てる。
+// テキストスタイル・余白・角丸は @theme に出す。css.reset で Tailwind 標準の段階を無効化できる
+const rem = (px) => `${+(px / 16).toFixed(4)}rem`;
+const cssName = (name) => name.replace(/\//g, '-');
+const buildCss = () => {
+  const cfg = T.css;
+  const vars = [];
+  const seen = new Map();
+  for (const r of rows) {
+    for (const v of [r.css ?? []].flat()) {
+      if (seen.has(v)) {
+        errors.push(`CSS 変数 ${v} が ${seen.get(v)} と ${r.token} で重複している`);
+        continue;
+      }
+      seen.set(v, r.token);
+      vars.push([v, hex(r.ref), r.token]);
+    }
+  }
+  const lines = [
+    `/* 自動生成ファイル。手で編集しない。${relative(dirname(resolve(dirname(tokensPath), cfg.out)), resolve(tokensPath))} を直して生成し直す（${cfg.command ?? 'node build.mjs'}） */`,
+    '',
+    ':root {',
+    ...vars.map(([v, h, token]) => `  ${v}: ${h}; /* ${token} */`),
+    '}',
+    '',
+    '@theme inline {',
+    ...vars.map(([v]) => `  --color-${v.slice(2)}: var(${v});`),
+    ...Object.entries(cfg.fonts ?? {}).map(([name, value]) => `  --font-${name}: ${value};`),
+    '}',
+    '',
+    '@theme {',
+  ];
+  if (cfg.reset?.text) lines.push('  --text-*: initial;');
+  for (const [name, s] of Object.entries(TY.styles)) {
+    const n = cssName(name);
+    lines.push(
+      `  --text-${n}: ${rem(TY.fontSize[s.size])};`,
+      `  --text-${n}--line-height: ${s.lineHeight};`,
+      `  --text-${n}--font-weight: ${TY.fontWeight[s.weight]};`,
+      `  --text-${n}--letter-spacing: ${(s.letterSpacing ?? 0) / 100}em;`,
+    );
+  }
+  for (const [name, px] of Object.entries(T.spacing ?? {})) lines.push(`  --spacing-${name}: ${rem(px)};`);
+  if (cfg.reset?.radius) lines.push('  --radius-*: initial;');
+  for (const [name, px] of Object.entries(T.radius ?? {})) lines.push(`  --radius-${name}: ${rem(px)};`);
+  lines.push('}');
+  // OpenType 機能は --text-* のサブプロパティで持てないので、テキストスタイルのクラスに直接当てる
+  const ot = Object.entries(TY.styles).filter(([, s]) => (s.openTypeFeatures ?? []).length);
+  const groups = new Map();
+  for (const [name, s] of ot) {
+    const key = featureSettings(s);
+    groups.set(key, [...(groups.get(key) ?? []), `.text-${cssName(name)}`]);
+  }
+  if (groups.size) {
+    lines.push('', '@layer utilities {');
+    for (const [value, selectors] of groups) lines.push(`  ${selectors.join(',\n  ')} {`, `    font-feature-settings: ${value};`, '  }');
+    lines.push('}');
+  }
+  return `${lines.join('\n')}\n`;
+};
+
+// 実行したディレクトリの prettier で整形する（lint-staged の整形と同じ結果にするため）
+const format = async (text, filepath) => {
+  try {
+    const prettier = createRequire(join(process.cwd(), 'noop.js'))('prettier');
+    const options = (await prettier.resolveConfig(filepath)) ?? {};
+    return await prettier.format(text, { ...options, filepath });
+  } catch {
+    return text;
+  }
+};
+
+const outputs = [
+  [join(outDir, 'figma-tokens.json'), `${JSON.stringify(dtcg, null, 2)}\n`],
+  [join(outDir, 'preview.html'), html],
+];
+if (T.css?.out) outputs.push([resolve(dirname(tokensPath), T.css.out), buildCss()]);
+for (const o of outputs) if (!o[0].endsWith('.html')) o[1] = await format(o[1], o[0]);
+
+if (check) {
+  const stale = outputs.filter(([file, text]) => !existsSync(file) || readFileSync(file, 'utf8') !== text).map(([file]) => relative(process.cwd(), file));
+  errors.forEach((e) => console.error(`エラー: ${e}`));
+  if (stale.length) console.error(`生成物が tokens.json と合っていない: ${stale.join(', ')}。生成し直す（${T.css?.command ?? 'node build.mjs'}）`);
+  process.exit(errors.length || stale.length ? 1 : 0);
+}
+
+for (const [file, text] of outputs) {
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, text);
+}
 
 const count = (o) => Object.values(o).reduce((n, v) => n + ('$type' in v ? 1 : count(v)), 0);
 console.log(
@@ -262,5 +357,5 @@ console.log(`コントラスト: 判定 ${contrast.filter((c) => c.ok != null).l
 if (manualFeatures.length) console.log(`Figma で手作業の設定が要る OpenType 機能（Type details → Details）: ${manualFeatures.join(' / ')}`);
 warnings.forEach((w) => console.log(`注意: ${w}`));
 errors.forEach((e) => console.error(`エラー: ${e}`));
-console.log(`出力: ${join(outDir, 'figma-tokens.json')}, ${join(outDir, 'preview.html')}`);
+console.log(`出力: ${outputs.map(([file]) => relative(process.cwd(), file)).join(', ')}`);
 process.exit(errors.length ? 1 : 0);
