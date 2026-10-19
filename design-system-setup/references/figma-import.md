@@ -30,6 +30,7 @@
   - `lineHeight` を数値で渡すと PERCENT（1.57 → 157%）
   - 字間は `$extensions["com.figma"].letterSpacing` に `{ "unit": "PERCENT", "value": 10 }` を書く。`$value.letterSpacing` に参照を書くと px のバリアブルとして束縛されるので使わない
   - フォントが Figma で使えないとスキップされる（解析で一覧に出る）
+  - OpenType 機能（palt など）は Plugin API が書き込めないので扱えない。tokens.json の `openTypeFeatures` は Figma 用 JSON に出ず、build.mjs が「手作業で設定が要るスタイル」を出力する。プラグインは OpenType 機能を更新対象にしていないので、手作業で入れた設定は読み込み直しで消えないはず（未検証）
 
 ### 公開設定
 

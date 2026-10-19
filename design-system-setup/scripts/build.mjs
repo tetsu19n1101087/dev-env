@@ -75,6 +75,14 @@ for (const [name, s] of Object.entries(TY.styles)) {
   if (Math.abs(h - Math.round(h / 4) * 4) > 0.1) warnings.push(`${name}: 行の高さ ${h.toFixed(2)}px が4の倍数ではない`);
 }
 
+// OpenType 機能（palt など）。Figma の Plugin API は書き込めないので Figma 用 JSON には出さず、
+// 一覧ページの見本に当てて、Figma では手作業で設定するよう案内する
+const featureSettings = (s) =>
+  (s.openTypeFeatures ?? []).length ? s.openTypeFeatures.map((f) => `"${f}"`).join(', ') : '';
+const manualFeatures = Object.entries(TY.styles)
+  .filter(([, s]) => (s.openTypeFeatures ?? []).length)
+  .map(([name, s]) => `${name}: ${s.openTypeFeatures.join(', ')}`);
+
 // ---- DTCG（Figma 用） ----
 const set = (root, path, leaf) => {
   let node = root;
@@ -170,7 +178,9 @@ const typeRows = Object.entries(TY.styles)
     const px = TY.fontSize[s.size];
     const w = TY.fontWeight[s.weight];
     const ls = (s.letterSpacing ?? 0) / 100;
-    return `<div class="type-row"><div class="type-meta"><code>${esc(name)}</code><span>${px}px / ${esc(s.weight)} ${w} / ${s.lineHeight} → ${+(px * s.lineHeight).toFixed(2)}px / 字間 ${s.letterSpacing ?? 0}%（${ls}em）</span><span>${esc(s.use)}</span></div><p class="sample" style="font-size:${px}px;font-weight:${w};line-height:${s.lineHeight};letter-spacing:${ls}em"><span>${esc(s.sample ?? 'あいうえお Aa 123')}</span></p></div>`;
+    const ot = featureSettings(s);
+    const otMeta = ot ? `<span>OpenType: ${esc((s.openTypeFeatures ?? []).join(', '))}（Figma は手作業で設定）</span>` : '';
+    return `<div class="type-row"><div class="type-meta"><code>${esc(name)}</code><span>${px}px / ${esc(s.weight)} ${w} / ${s.lineHeight} → ${+(px * s.lineHeight).toFixed(2)}px / 字間 ${s.letterSpacing ?? 0}%（${ls}em）</span>${otMeta}<span>${esc(s.use)}</span></div><p class="sample" style="font-size:${px}px;font-weight:${w};line-height:${s.lineHeight};letter-spacing:${ls}em${ot ? `;font-feature-settings:${esc(ot)}` : ''}"><span>${esc(s.sample ?? 'あいうえお Aa 123')}</span></p></div>`;
   })
   .join('');
 const families = [...new Set(Object.values(TY.fontFamily))];
@@ -244,6 +254,7 @@ console.log(
   `${COL.typography} ${count(Typography)} / ${COL.primitive} ${count(Primitives)} / ${COL.alias} ${count(Alias)} / ${COL.semantic} ${count(Semantic)} / テキストスタイル ${count(typography)}`,
 );
 console.log(`コントラスト: 判定 ${contrast.filter((c) => c.ok != null).length} 件、不足 ${contrast.filter((c) => c.ok === false).length} 件`);
+if (manualFeatures.length) console.log(`Figma で手作業の設定が要る OpenType 機能（Type details → Details）: ${manualFeatures.join(' / ')}`);
 warnings.forEach((w) => console.log(`注意: ${w}`));
 errors.forEach((e) => console.error(`エラー: ${e}`));
 console.log(`出力: ${join(outDir, 'figma-tokens.json')}, ${join(outDir, 'preview.html')}`);

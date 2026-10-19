@@ -46,6 +46,14 @@ Figma ではテキストスタイルに **% で直接**設定し、コードで�
 
 日本語の本文は 0〜5% 程度が多い。英字フォント（Inter など）は大きいサイズほど詰めるのが基本なので、見出しを広げるときは英数字の見え方も確認する。
 
+### OpenType 機能（palt など）
+
+日本語の見出しは palt（約物・かなをプロポーショナル幅にする）で字面を詰めることが多い。本文には当てない。palt は字間と効き方が重なる（entre-web の 20px 見出しで、文の幅が約 14% 詰まった）ので、palt を足したら字間を見直す。
+
+- tokens.json のスタイルに `"openTypeFeatures": ["palt"]` と書く。build.mjs は一覧ページの見本に `font-feature-settings` を当て、Figma で手作業の設定が要るスタイルを出力する
+- **Figma 用 JSON には入らない。** Plugin API が OpenType 機能を書き込めない（読み取り専用）ため。Figma ではテキストスタイルの「Type details」→「Details」で手作業でオンにする。テキストスタイル自体は OpenType 機能を保存できる
+- コード: Tailwind v4 の `--text-*` は font-feature-settings を持てない。`app/globals.css` で見出しのクラスに `font-feature-settings: "palt"` を当てる
+
 ## テキストスタイルの系統と名前
 
 `<系統>/<段階>`。段階は `xl lg md sm xs` で、**md を標準**にする。
