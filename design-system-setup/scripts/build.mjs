@@ -21,10 +21,20 @@ if (!tokensPath) {
   process.exit(2);
 }
 const T = JSON.parse(readFileSync(tokensPath, 'utf8'));
-const outDir = resolve(outArg && !/\.[a-z0-9]+$/i.test(outArg) ? outArg : join(dirname(tokensPath), 'dist'));
+const outDir = resolve(
+  outArg && !/\.[a-z0-9]+$/i.test(outArg)
+    ? outArg
+    : join(dirname(tokensPath), 'dist'),
+);
 const C = T.color;
 const TY = T.typography;
-const COL = { typography: 'Typography', primitive: 'PrimitiveColor', alias: 'AliasColor', semantic: 'SemanticColor', ...T.collections };
+const COL = {
+  typography: 'Typography',
+  primitive: 'PrimitiveColor',
+  alias: 'AliasColor',
+  semantic: 'SemanticColor',
+  ...T.collections,
+};
 
 // ---- 色の解決 ----
 const primitiveHex = (name) => {
@@ -51,42 +61,64 @@ const ratio = (a, b) => {
 const errors = [];
 const warnings = [];
 for (const [fam, { values }] of Object.entries(C.primitives)) {
-  if (values.length !== C.steps.length) errors.push(`プリミティブ ${fam} の段階数が steps（${C.steps.length}）と違う: ${values.length}`);
+  if (values.length !== C.steps.length)
+    errors.push(
+      `プリミティブ ${fam} の段階数が steps（${C.steps.length}）と違う: ${values.length}`,
+    );
 }
 for (const [alias, prim] of Object.entries(C.aliases)) {
-  if (!primitiveHex(prim)) errors.push(`エイリアス ${alias} の参照先プリミティブがない: ${prim}`);
+  if (!primitiveHex(prim))
+    errors.push(`エイリアス ${alias} の参照先プリミティブがない: ${prim}`);
 }
-const rows = Object.entries(C.semantic).flatMap(([kind, list]) => list.map((r) => ({ kind, ...r })));
+const rows = Object.entries(C.semantic).flatMap(([kind, list]) =>
+  list.map((r) => ({ kind, ...r })),
+);
 const contrast = [];
 for (const r of rows) {
   // 用途別は必ずエイリアスを参照する（プリミティブを直接指さない）
-  if (!(r.ref in C.aliases)) errors.push(`${r.token} がエイリアス以外を参照している: ${r.ref}`);
-  if (r.on && !(r.on in C.aliases)) errors.push(`${r.token} のコントラストの相手がエイリアスではない: ${r.on}`);
+  if (!(r.ref in C.aliases))
+    errors.push(`${r.token} がエイリアス以外を参照している: ${r.ref}`);
+  if (r.on && !(r.on in C.aliases))
+    errors.push(`${r.token} のコントラストの相手がエイリアスではない: ${r.on}`);
   if (r.on && hex(r.ref) && hex(r.on)) {
     const v = ratio(hex(r.ref), hex(r.on));
     const ok = r.min == null ? null : v >= r.min;
     contrast.push({ ...r, value: v, ok });
-    if (ok === false) errors.push(`コントラスト不足 ${r.token}（${hex(r.ref)}）/ ${r.on}（${hex(r.on)}）: ${v.toFixed(2)} < ${r.min}`);
+    if (ok === false)
+      errors.push(
+        `コントラスト不足 ${r.token}（${hex(r.ref)}）/ ${r.on}（${hex(r.on)}）: ${v.toFixed(2)} < ${r.min}`,
+      );
   }
 }
 const usedAliases = new Set(rows.flatMap((r) => [r.ref, r.on].filter(Boolean)));
 for (const a of Object.keys(C.aliases)) {
-  if (!usedAliases.has(a) && !(C.aliasNotes ?? {})[a]) warnings.push(`用途別から使われていないエイリアス: ${a}（直接使うならメモを aliasNotes に書く）`);
+  if (!usedAliases.has(a) && !(C.aliasNotes ?? {})[a])
+    warnings.push(
+      `用途別から使われていないエイリアス: ${a}（直接使うならメモを aliasNotes に書く）`,
+    );
 }
 for (const [name, s] of Object.entries(TY.styles)) {
   const size = TY.fontSize[s.size];
-  if (size == null) errors.push(`テキストスタイル ${name} の size がない: ${s.size}`);
-  if (TY.fontWeight[s.weight] == null) errors.push(`テキストスタイル ${name} の weight がない: ${s.weight}`);
-  if (s.fontFamily && TY.fontFamily[s.fontFamily] == null) errors.push(`テキストスタイル ${name} の fontFamily がない: ${s.fontFamily}`);
+  if (size == null)
+    errors.push(`テキストスタイル ${name} の size がない: ${s.size}`);
+  if (TY.fontWeight[s.weight] == null)
+    errors.push(`テキストスタイル ${name} の weight がない: ${s.weight}`);
+  if (s.fontFamily && TY.fontFamily[s.fontFamily] == null)
+    errors.push(
+      `テキストスタイル ${name} の fontFamily がない: ${s.fontFamily}`,
+    );
   // 行の高さ（文字サイズ × 倍率）が 4 の倍数か。倍率は小数第2位までなので ±0.1px は許容
   const h = size * s.lineHeight;
-  if (Math.abs(h - Math.round(h / 4) * 4) > 0.1) warnings.push(`${name}: 行の高さ ${h.toFixed(2)}px が4の倍数ではない`);
+  if (Math.abs(h - Math.round(h / 4) * 4) > 0.1)
+    warnings.push(`${name}: 行の高さ ${h.toFixed(2)}px が4の倍数ではない`);
 }
 
 // OpenType 機能（palt など）。Figma の Plugin API は書き込めないので Figma 用 JSON には出さず、
 // 一覧ページの見本に当てて、Figma では手作業で設定するよう案内する
 const featureSettings = (s) =>
-  (s.openTypeFeatures ?? []).length ? s.openTypeFeatures.map((f) => `"${f}"`).join(', ') : '';
+  (s.openTypeFeatures ?? []).length
+    ? s.openTypeFeatures.map((f) => `"${f}"`).join(', ')
+    : '';
 const manualFeatures = Object.entries(TY.styles)
   .filter(([, s]) => (s.openTypeFeatures ?? []).length)
   .map(([name, s]) => `${name}: ${s.openTypeFeatures.join(', ')}`);
@@ -99,16 +131,28 @@ const set = (root, path, leaf) => {
   });
   node[path.at(-1)] = leaf;
 };
-const refOf = (collection, name) => `{${collection}.${name.split('/').join('.')}}`;
+const refOf = (collection, name) =>
+  `{${collection}.${name.split('/').join('.')}}`;
 
 // プリミティブは scopes を空にして Figma の色の候補に出さない。
 // resolvedType を付けると、既存のバリアブルを更新するときも scopes が反映される
-const primitive = (h) => ({ $type: 'color', $value: h, $extensions: { 'com.figma': { resolvedType: 'COLOR', scopes: [] } } });
-const Primitives = Object.fromEntries(Object.entries(C.singles).map(([n, h]) => [n, primitive(h)]));
-for (const [fam, { values }] of Object.entries(C.primitives)) values.forEach((h, i) => set(Primitives, [fam, C.steps[i]], primitive(h)));
+const primitive = (h) => ({
+  $type: 'color',
+  $value: h,
+  $extensions: { 'com.figma': { resolvedType: 'COLOR', scopes: [] } },
+});
+const Primitives = Object.fromEntries(
+  Object.entries(C.singles).map(([n, h]) => [n, primitive(h)]),
+);
+for (const [fam, { values }] of Object.entries(C.primitives))
+  values.forEach((h, i) => set(Primitives, [fam, C.steps[i]], primitive(h)));
 
 const Alias = {};
-for (const [name, prim] of Object.entries(C.aliases)) set(Alias, name.split('/'), { $type: 'color', $value: refOf(COL.primitive, prim) });
+for (const [name, prim] of Object.entries(C.aliases))
+  set(Alias, name.split('/'), {
+    $type: 'color',
+    $value: refOf(COL.primitive, prim),
+  });
 
 const Semantic = {};
 for (const r of rows) {
@@ -116,14 +160,34 @@ for (const r of rows) {
     $type: 'color',
     $value: refOf(COL.alias, r.ref),
     $description: r.use,
-    $extensions: { 'com.figma': { resolvedType: 'COLOR', scopes: (C.scopeOverrides ?? {})[r.token] ?? C.scopes[r.kind] ?? [] } },
+    $extensions: {
+      'com.figma': {
+        resolvedType: 'COLOR',
+        scopes: (C.scopeOverrides ?? {})[r.token] ?? C.scopes[r.kind] ?? [],
+      },
+    },
   });
 }
 
 const Typography = {
-  'font-family': Object.fromEntries(Object.entries(TY.fontFamily).map(([k, v]) => [k, { $type: 'fontFamily', $value: v }])),
-  'font-size': Object.fromEntries(Object.entries(TY.fontSize).map(([k, px]) => [k, { $type: 'dimension', $value: { value: px, unit: 'px' } }])),
-  'font-weight': Object.fromEntries(Object.entries(TY.fontWeight).map(([k, w]) => [k, { $type: 'fontWeight', $value: w }])),
+  'font-family': Object.fromEntries(
+    Object.entries(TY.fontFamily).map(([k, v]) => [
+      k,
+      { $type: 'fontFamily', $value: v },
+    ]),
+  ),
+  'font-size': Object.fromEntries(
+    Object.entries(TY.fontSize).map(([k, px]) => [
+      k,
+      { $type: 'dimension', $value: { value: px, unit: 'px' } },
+    ]),
+  ),
+  'font-weight': Object.fromEntries(
+    Object.entries(TY.fontWeight).map(([k, w]) => [
+      k,
+      { $type: 'fontWeight', $value: w },
+    ]),
+  ),
 };
 
 // テキストスタイル: 行の高さは倍率（数値で渡すと PERCENT になる）。字間は % を直接指定する
@@ -140,7 +204,11 @@ for (const [name, s] of Object.entries(TY.styles)) {
       lineHeight: s.lineHeight,
     },
     $description: s.use,
-    $extensions: { 'com.figma': { letterSpacing: { unit: 'PERCENT', value: s.letterSpacing ?? 0 } } },
+    $extensions: {
+      'com.figma': {
+        letterSpacing: { unit: 'PERCENT', value: s.letterSpacing ?? 0 },
+      },
+    },
   });
 }
 
@@ -153,29 +221,44 @@ const dtcg = {
 };
 
 // ---- 一覧ページ ----
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const esc = (s) =>
+  String(s ?? '').replace(
+    /[&<>"]/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c],
+  );
 const used = new Set(Object.values(C.aliases));
 const ramps = Object.entries(C.primitives)
   .map(
     ([fam, { source, values }]) => `
     <div class="ramp"><div class="ramp-head"><h3>${esc(fam)}</h3><span>${esc(source)}</span></div><div class="chips">${values
-      .map((h, i) => `<div class="chip${used.has(`${fam}/${C.steps[i]}`) ? ' used' : ''}"><i style="background:${h}"></i><b>${C.steps[i]}</b><code>${h}</code></div>`)
+      .map(
+        (h, i) =>
+          `<div class="chip${used.has(`${fam}/${C.steps[i]}`) ? ' used' : ''}"><i style="background:${h}"></i><b>${C.steps[i]}</b><code>${h}</code></div>`,
+      )
       .join('')}</div></div>`,
   )
   .join('');
 const singles = Object.entries(C.singles)
-  .map(([n, h]) => `<div class="chip${used.has(n) ? ' used' : ''}"><i style="background:${h}"></i><b>${esc(n)}</b><code>${h}</code></div>`)
+  .map(
+    ([n, h]) =>
+      `<div class="chip${used.has(n) ? ' used' : ''}"><i style="background:${h}"></i><b>${esc(n)}</b><code>${h}</code></div>`,
+  )
   .join('');
 const sw = (h) => `<span class="sw" style="background:${h}"></span>`;
 const aliasRows = Object.entries(C.aliases)
-  .map(([a, p]) => `<tr><td class="mono">${esc(a)}</td><td class="mono">${sw(hex(a))}${esc(p)} <span class="muted">${hex(a)}</span></td><td>${esc((C.aliasNotes ?? {})[a])}</td></tr>`)
+  .map(
+    ([a, p]) =>
+      `<tr><td class="mono">${esc(a)}</td><td class="mono">${sw(hex(a))}${esc(p)} <span class="muted">${hex(a)}</span></td><td>${esc((C.aliasNotes ?? {})[a])}</td></tr>`,
+  )
   .join('');
 const semanticTables = Object.entries(C.semantic)
   .map(([kind, list]) => {
     const body = list
       .map((r) => {
         const c = contrast.find((x) => x.token === r.token);
-        const cr = c ? `${c.value.toFixed(2)}${c.ok == null ? '' : c.ok ? ' ✓' : ' ✗'} <span class="tag">${esc(r.on)}</span>` : '—';
+        const cr = c
+          ? `${c.value.toFixed(2)}${c.ok == null ? '' : c.ok ? ' ✓' : ' ✗'} <span class="tag">${esc(r.on)}</span>`
+          : '—';
         return `<tr><td class="mono">${esc(r.token)}</td><td class="mono">${sw(hex(r.ref))}${esc(r.ref)} <span class="muted">→ ${esc(C.aliases[r.ref])} ${hex(r.ref) ?? ''}</span></td><td>${esc(r.use)}</td><td class="mono">${cr}</td></tr>`;
       })
       .join('');
@@ -188,17 +271,28 @@ const typeRows = Object.entries(TY.styles)
     const w = TY.fontWeight[s.weight];
     const ls = (s.letterSpacing ?? 0) / 100;
     const ot = featureSettings(s);
-    const otMeta = ot ? `<span>OpenType: ${esc((s.openTypeFeatures ?? []).join(', '))}（Figma は手作業で設定）</span>` : '';
+    const otMeta = ot
+      ? `<span>OpenType: ${esc((s.openTypeFeatures ?? []).join(', '))}（Figma は手作業で設定）</span>`
+      : '';
     // スタイル固有のフォント（例: 欧文だけの meta/sm は en）。既定はページ全体の cssFontStack
-    const fam = s.fontFamily ? `;font-family:&quot;${esc(TY.fontFamily[s.fontFamily])}&quot;, sans-serif` : '';
-    const famMeta = s.fontFamily ? `<span>フォント: font-family/${esc(s.fontFamily)}（${esc(TY.fontFamily[s.fontFamily])}）</span>` : '';
+    const fam = s.fontFamily
+      ? `;font-family:&quot;${esc(TY.fontFamily[s.fontFamily])}&quot;, sans-serif`
+      : '';
+    const famMeta = s.fontFamily
+      ? `<span>フォント: font-family/${esc(s.fontFamily)}（${esc(TY.fontFamily[s.fontFamily])}）</span>`
+      : '';
     return `<div class="type-row"><div class="type-meta"><code>${esc(name)}</code><span>${px}px / ${esc(s.weight)} ${w} / ${s.lineHeight} → ${+(px * s.lineHeight).toFixed(2)}px / 字間 ${s.letterSpacing ?? 0}%（${ls}em）</span>${famMeta}${otMeta}<span>${esc(s.use)}</span></div><p class="sample" style="font-size:${px}px;font-weight:${w};line-height:${s.lineHeight};letter-spacing:${ls}em${ot ? `;font-feature-settings:${esc(ot)}` : ''}${fam}"><span>${esc(s.sample ?? 'あいうえお Aa 123')}</span></p></div>`;
   })
   .join('');
 const families = [...new Set(Object.values(TY.fontFamily))];
-const weights = [...new Set(Object.values(TY.fontWeight))].sort((a, b) => a - b).join(';');
+const weights = [...new Set(Object.values(TY.fontWeight))]
+  .sort((a, b) => a - b)
+  .join(';');
 const fontsHref = `https://fonts.googleapis.com/css2?${families.map((f) => `family=${f.replace(/ /g, '+')}:wght@${weights}`).join('&')}&display=swap`;
-const problems = [...errors.map((e) => `<li class="err">${esc(e)}</li>`), ...warnings.map((w) => `<li>${esc(w)}</li>`)].join('');
+const problems = [
+  ...errors.map((e) => `<li class="err">${esc(e)}</li>`),
+  ...warnings.map((w) => `<li>${esc(w)}</li>`),
+].join('');
 
 const html = `<!doctype html>
 <html lang="ja">
@@ -269,7 +363,9 @@ const buildCss = () => {
   for (const r of rows) {
     for (const v of [r.css ?? []].flat()) {
       if (seen.has(v)) {
-        errors.push(`CSS 変数 ${v} が ${seen.get(v)} と ${r.token} で重複している`);
+        errors.push(
+          `CSS 変数 ${v} が ${seen.get(v)} と ${r.token} で重複している`,
+        );
         continue;
       }
       seen.set(v, r.token);
@@ -285,7 +381,9 @@ const buildCss = () => {
     '',
     '@theme inline {',
     ...vars.map(([v]) => `  --color-${v.slice(2)}: var(${v});`),
-    ...Object.entries(cfg.fonts ?? {}).map(([name, value]) => `  --font-${name}: ${value};`),
+    ...Object.entries(cfg.fonts ?? {}).map(
+      ([name, value]) => `  --font-${name}: ${value};`,
+    ),
     '}',
     '',
     '@theme {',
@@ -300,12 +398,16 @@ const buildCss = () => {
       `  --text-${n}--letter-spacing: ${(s.letterSpacing ?? 0) / 100}em;`,
     );
   }
-  for (const [name, px] of Object.entries(T.spacing ?? {})) lines.push(`  --spacing-${name}: ${rem(px)};`);
+  for (const [name, px] of Object.entries(T.spacing ?? {}))
+    lines.push(`  --spacing-${name}: ${rem(px)};`);
   if (cfg.reset?.radius) lines.push('  --radius-*: initial;');
-  for (const [name, px] of Object.entries(T.radius ?? {})) lines.push(`  --radius-${name}: ${rem(px)};`);
+  for (const [name, px] of Object.entries(T.radius ?? {}))
+    lines.push(`  --radius-${name}: ${rem(px)};`);
   lines.push('}');
   // OpenType 機能は --text-* のサブプロパティで持てないので、テキストスタイルのクラスに直接当てる
-  const ot = Object.entries(TY.styles).filter(([, s]) => (s.openTypeFeatures ?? []).length);
+  const ot = Object.entries(TY.styles).filter(
+    ([, s]) => (s.openTypeFeatures ?? []).length,
+  );
   const groups = new Map();
   for (const [name, s] of ot) {
     const key = featureSettings(s);
@@ -313,7 +415,12 @@ const buildCss = () => {
   }
   if (groups.size) {
     lines.push('', '@layer utilities {');
-    for (const [value, selectors] of groups) lines.push(`  ${selectors.join(',\n  ')} {`, `    font-feature-settings: ${value};`, '  }');
+    for (const [value, selectors] of groups)
+      lines.push(
+        `  ${selectors.join(',\n  ')} {`,
+        `    font-feature-settings: ${value};`,
+        '  }',
+      );
     lines.push('}');
   }
   return `${lines.join('\n')}\n`;
@@ -334,13 +441,22 @@ const outputs = [
   [join(outDir, 'figma-tokens.json'), `${JSON.stringify(dtcg, null, 2)}\n`],
   [join(outDir, 'preview.html'), html],
 ];
-if (T.css?.out) outputs.push([resolve(dirname(tokensPath), T.css.out), buildCss()]);
-for (const o of outputs) if (!o[0].endsWith('.html')) o[1] = await format(o[1], o[0]);
+if (T.css?.out)
+  outputs.push([resolve(dirname(tokensPath), T.css.out), buildCss()]);
+for (const o of outputs) o[1] = await format(o[1], o[0]);
 
 if (check) {
-  const stale = outputs.filter(([file, text]) => !existsSync(file) || readFileSync(file, 'utf8') !== text).map(([file]) => relative(process.cwd(), file));
+  const stale = outputs
+    .filter(
+      ([file, text]) =>
+        !existsSync(file) || readFileSync(file, 'utf8') !== text,
+    )
+    .map(([file]) => relative(process.cwd(), file));
   errors.forEach((e) => console.error(`エラー: ${e}`));
-  if (stale.length) console.error(`生成物が tokens.json と合っていない: ${stale.join(', ')}。生成し直す（${T.css?.command ?? 'node build.mjs'}）`);
+  if (stale.length)
+    console.error(
+      `生成物が tokens.json と合っていない: ${stale.join(', ')}。生成し直す（${T.css?.command ?? 'node build.mjs'}）`,
+    );
   process.exit(errors.length || stale.length ? 1 : 0);
 }
 
@@ -349,13 +465,21 @@ for (const [file, text] of outputs) {
   writeFileSync(file, text);
 }
 
-const count = (o) => Object.values(o).reduce((n, v) => n + ('$type' in v ? 1 : count(v)), 0);
+const count = (o) =>
+  Object.values(o).reduce((n, v) => n + ('$type' in v ? 1 : count(v)), 0);
 console.log(
   `${COL.typography} ${count(Typography)} / ${COL.primitive} ${count(Primitives)} / ${COL.alias} ${count(Alias)} / ${COL.semantic} ${count(Semantic)} / テキストスタイル ${count(typography)}`,
 );
-console.log(`コントラスト: 判定 ${contrast.filter((c) => c.ok != null).length} 件、不足 ${contrast.filter((c) => c.ok === false).length} 件`);
-if (manualFeatures.length) console.log(`Figma で手作業の設定が要る OpenType 機能（Type details → Details）: ${manualFeatures.join(' / ')}`);
+console.log(
+  `コントラスト: 判定 ${contrast.filter((c) => c.ok != null).length} 件、不足 ${contrast.filter((c) => c.ok === false).length} 件`,
+);
+if (manualFeatures.length)
+  console.log(
+    `Figma で手作業の設定が要る OpenType 機能（Type details → Details）: ${manualFeatures.join(' / ')}`,
+  );
 warnings.forEach((w) => console.log(`注意: ${w}`));
 errors.forEach((e) => console.error(`エラー: ${e}`));
-console.log(`出力: ${outputs.map(([file]) => relative(process.cwd(), file)).join(', ')}`);
+console.log(
+  `出力: ${outputs.map(([file]) => relative(process.cwd(), file)).join(', ')}`,
+);
 process.exit(errors.length ? 1 : 0);
