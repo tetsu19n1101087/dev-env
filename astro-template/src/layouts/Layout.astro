@@ -25,6 +25,14 @@ const ogImageUrl = new URL(`${base}${ogImage}`, Astro.site);
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{pageTitle}</title>
+    {/*
+      カスケードレイヤーの順序はここで一度だけ宣言する（docs/css.md）。
+      バンドル CSS ではコンポーネントの @layer components が先頭に来て、SCSS 側の宣言文は minifier に消されるため、
+      <link> より前に置かないと components が最弱のレイヤーになる。title の直後は markuplint の head-element-order に合わせた位置。
+    */}
+    <style is:inline>
+      @layer reset, base, components, utilities;
+    </style>
     <meta name="description" content={description} />
     <meta name="twitter:card" content="summary_large_image" />
 

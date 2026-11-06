@@ -1,7 +1,6 @@
 // Layout から読み込むエントリ。CSS を出力するのが目的なので @use で集約する。
-// レイヤーの順序は layers.scss で最初に宣言する。scoped style（コンポーネント内 <style>）は
-// どのレイヤーにも属さないため、ここで定義したすべてより優先される。
-@use 'layers';
+// レイヤーの順序（reset, base, components, utilities）は Layout.astro の <head> で宣言する。
+// ここで宣言しても、バンドル後はコンポーネントの @layer components より後ろに並ぶため効かない。
 @use 'reset';
 @use 'variables';
 @use 'base';

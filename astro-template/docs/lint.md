@@ -39,6 +39,12 @@ printf '%s\n' '.p-Hero__ttl--wide { color: #000; }' '.c-button { color: #000; }'
   | npx stylelint --stdin-filename src/t.scss
 ```
 
+ローカルルール `local/component-css`（`stylelint-plugins/component-css.js`）で、コンポーネント CSS のルール（`docs/css.md`）を強制している。`.astro` の `<style>` だけが対象。
+
+- `<style>` の属性は postcss-html が `root.raws.codeBefore`（`<style>` タグまでの HTML）に持っているので、そこから `is:global` / `is:inline` を読む
+- セレクタは自前の字句解析で見ている。`postcss-selector-parser` は stylelint の推移的依存で、直接は依存していないため
+- ルールを変えたら、違反する `.astro` を `src/components/` と `src/pages/` に一時的に置いて `npx stylelint` を走らせ、検出されることを確かめる
+
 ## Prettier
 
 - `printWidth: 120`

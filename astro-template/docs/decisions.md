@@ -17,6 +17,7 @@
 | ESLint               | recommended                                           | TypeChecked 系                    | 非同期処理が少ない。型情報ありだと設定ファイル自身が誤検出される                                            |
 | reset                | kiso.css                                              | destyle / modern-normalize / ress | 日本語組版への配慮と `:where()` による低い詳細度                                                            |
 | 詳細度の整理         | `@layer`                                              | 読み込み順 + `:where()`           | 外部 CSS の無い単独サイトではレイヤーが素直に効く                                                           |
+| コンポーネント CSS   | `<style is:global>` + `@layer components`             | Astro の scoped style（既定）     | 下の「コンポーネント CSS をグローバルにする」を参照                                                         |
 | 画像                 | `<Picture>` AVIF + WebP                               | `<Image>` WebP のみ               | ファイルサイズを優先。ビルド時間は増える                                                                    |
 | フォント             | システムフォント                                      | Astro の Fonts API                | 案件ごとに決める                                                                                            |
 | sitemap              | 入れない                                              | `@astrojs/sitemap`                | 単独 LP は1ページ。複数ページになったら追加する                                                             |
@@ -27,3 +28,15 @@
 | `verify` の範囲      | build + check + lint + **format:check** + lint:markup | `format:check` を含めない         | エディタの保存時整形に頼ると、整形されていないソースが CI を通ってしまうため                                |
 | axe の実行           | 独立コマンド                                          | `verify` / CI に含める            | ブラウザが必要で、実行環境に依存する                                                                        |
 | GTM などの計測タグ   | 入れない                                              | Layout に枠を用意                 | 案件ごとに要否と方式が違う                                                                                  |
+
+## コンポーネント CSS をグローバルにする（2026-11）
+
+Astro 既定の scoped style をやめ、コンポーネントの `<style>` を `is:global` ＋ `@layer components` で書く。
+
+- **理由: 納品差分のノイズ。** scoped style ではコンポーネントの中身が変わるたびに `data-astro-cid-xxx` のハッシュが変わり、そのコンポーネントを使う全ページの HTML に差分が出る。前回納品との差分報告が読めなくなる。移行後は、CSS を1行変えても HTML の差分は CSS ファイル名の1行だけになる（実測）
+- **衝突はスコープではなく命名と Lint で防ぐ。** 命名規則（Block 名＝ファイル名）でクラス名は一意になっていて、scoped は二重の保護だった。命名が守られているかは Stylelint のローカルルール `local/component-css` が検査する。スコープが無くなって起きる子孫セレクタの漏れ（`.p-Hero a` が子コンポーネントの中にまで効く）も、同じルールで禁止している
+- **utilities をコンポーネントより強くした。** 以前は scoped style がレイヤーの外にあって全レイヤーに勝ち、utilities が効かなかった。今は `reset, base, components, utilities` の順に並ぶ
+- **選ばなかったもの:**
+  - コンポーネントと同名の `.scss` を import する方式 — `is:global` の付け忘れは起きないが、1コンポーネントが2ファイルに分かれる。付け忘れは Lint で検出できる
+  - `scopedStyleStrategy: 'where'` — 詳細度は下がるが、ハッシュの属性と納品差分のノイズは残る
+  - 衝突防止を Claude のレビューだけにする — 人が直接書いたコードでの違反に気付けない
